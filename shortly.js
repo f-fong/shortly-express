@@ -31,9 +31,20 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+var checkLoggedIn = function(req, res, next) {
+  // check user logged in
+  // if yes, next()
+  // else redirect to /login
+  if (req.session.loggedIn) {
+    next();
+  } else {
+    //console.log('redirecting...');
+    res.redirect('/login');
+    //res.end();
+  }
+};
 
-
-app.get('/', 
+app.get('/', checkLoggedIn, 
 function(req, res) {
   res.render('index');
 });
@@ -47,20 +58,6 @@ app.get('/signup',
   function(req, res) {
     res.render('signup');
   });
-
-var checkLoggedIn = function(req, res, next) {
-  // check user logged in
-  // if yes, next()
-  // else redirect to /login
-  console.log('checkloggedin was called');
-  if (req.session.loggedIn) {
-    next();
-  } else {
-    console.log('redirecting...');
-    res.redirect('/login');
-    //res.end();
-  }
-};
 
 app.get('/create', checkLoggedIn,  
 function(req, res) {
@@ -89,7 +86,7 @@ app.get('/logout',
 app.post('/links', 
 function(req, res) {
   var uri = req.body.url;
-
+  console.log(uri);
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
     return res.sendStatus(404);
@@ -132,8 +129,9 @@ app.post('/signup',
         username: username,
         password: hash, 
       }).save().then(function(user) {
-        console.log('user is ', user);
-        res.render('index');
+        console.log('new user created, user is ', user);
+        req.session.loggedIn = username;
+        res.redirect('/');
       });
     });
   });
@@ -144,6 +142,11 @@ app.post('/login',
     var password = req.body.password;
 
     new User({username: username}).fetch().then(function(model) {
+      if (!model) {
+        //res.render('login'); 
+        res.redirect('/login');
+        return;
+      }
       bcrypt.compare(password, model.get('password'), function(err, hash) {
         if (err) {
           res.render('login');
