@@ -71,7 +71,7 @@ function(req, res) {
 
 app.get('/links', checkLoggedIn,
 function(req, res) {
-    console.log('serving up links');
+  console.log('serving up links');
   Links.reset().fetch().then(function(links) {
     res.status(200).send(links.models);
   });
@@ -147,12 +147,16 @@ app.post('/login',
         res.redirect('/login');
         return;
       }
-      bcrypt.compare(password, model.get('password'), function(err, hash) {
+      bcrypt.compare(password, model.get('password'), function(err, resp) {
         if (err) {
-          res.render('login');
-        } else {
+          //res.render('login', {loginFailed: true});
+          console.error(err);
+          res.redirect('/login');
+        } else if (resp === true) {
           req.session.loggedIn = username;
           res.redirect('/');
+        } else {
+          res.redirect('/login');
         }
       });
     });
