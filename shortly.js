@@ -10,8 +10,17 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var bcrypt = require('bcrypt');
+var session = require('express-session');
 
 var app = express();
+
+app.use(session({
+  secret: 'keyboard cat',
+  resave: true,
+  saveUninitialized: true,
+  cookie: { maxAge: 6000000 }
+}));
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -23,22 +32,59 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
+
 app.get('/', 
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/login', 
+  function(req, res) {
+    res.render('login'); 
+  });
+
+app.get('/signup', 
+  function(req, res) {
+    res.render('signup');
+  });
+
+var checkLoggedIn = function(req, res, next) {
+  // check user logged in
+  // if yes, next()
+  // else redirect to /login
+  console.log('checkloggedin was called');
+  if (req.session.loggedIn) {
+    next();
+  } else {
+    console.log('redirecting...');
+    res.redirect('/login');
+    //res.end();
+  }
+};
+
+app.get('/create', checkLoggedIn,  
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/checkSession',  
 function(req, res) {
+  res.send(JSON.stringify(req.session));
+});
+
+app.get('/links', checkLoggedIn,
+function(req, res) {
+    console.log('serving up links');
   Links.reset().fetch().then(function(links) {
     res.status(200).send(links.models);
   });
 });
+
+app.get('/logout', 
+  function(req, res) {
+    delete req.session.loggedIn;
+    res.render('index');
+  });
 
 app.post('/links', 
 function(req, res) {
@@ -71,6 +117,43 @@ function(req, res) {
     }
   });
 });
+
+app.post('/signup',
+  function(req, res) {
+    var username = req.body.username;
+    var password = req.body.password;
+
+    bcrypt.hash(password, 10, function(err, hash) {
+      if (err) {
+        console.log(err);
+      }
+
+      new User({
+        username: username,
+        password: hash, 
+      }).save().then(function(user) {
+        console.log('user is ', user);
+        res.render('index');
+      });
+    });
+  });
+
+app.post('/login', 
+  function(req, res) {
+    var username = req.body.username;
+    var password = req.body.password;
+
+    new User({username: username}).fetch().then(function(model) {
+      bcrypt.compare(password, model.get('password'), function(err, hash) {
+        if (err) {
+          res.render('login');
+        } else {
+          req.session.loggedIn = username;
+          res.redirect('/');
+        }
+      });
+    });
+  });
 
 /************************************************************/
 // Write your authentication routes here
